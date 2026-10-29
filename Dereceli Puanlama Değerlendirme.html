@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dereceli Puanlama Değerlendirme</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1c1f24;--card:#fff;--bd:#d5d9e0;--ac:#e8820c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15171a;--fg:#e8eaed;--card:#1f2226;--bd:#3a3f46}}
+:root[data-theme="dark"]{--bg:#15171a;--fg:#e8eaed;--card:#1f2226;--bd:#3a3f46}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif;padding:12px;padding-top:calc(12px + env(safe-area-inset-top,0px));padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:12px}
+h1{font-size:18px;margin:0 0 10px}
+label{display:block;font-size:13px;margin:6px 0 2px}
+select,input,textarea,button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 8px;max-width:100%}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:150px}
+select,textarea,.row input{width:100%}
+button{background:var(--ac);color:#fff;border:0;padding:8px 14px;cursor:pointer;margin:8px 6px 0 0}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #999;padding:3px 5px;text-align:center}
+th{background:#fbe3c6;color:#000;font-size:12px}
+td.n{text-align:left;white-space:nowrap}
+td input.s{width:46px;text-align:center;padding:3px}
+td input.nt{width:100%;min-width:90px}
+td.t{font-weight:bold}
+#hd{display:none;margin-bottom:6px}
+.info{font-size:12px;opacity:.8;margin-top:6px}
+@page{size:A4 landscape;margin:10mm}
+@media print{
+ body{background:#fff;color:#000;padding:0}
+ .card.ctl,#info,.dev{display:none}
+ .card{border:0;padding:0}
+ #hd{display:block}
+ input{border:0!important;background:transparent!important;color:#000!important;padding:0!important}
+ input::-webkit-inner-spin-button{display:none}
+ thead{display:table-header-group}tr{break-inside:avoid}
+ .wrap{overflow:visible}
+}
+</style></head><body>
+<div class="card ctl">
+<h1>Dereceli Puanlama Değerlendirme</h1>
+<label>Okul adı (çıktının başında görünür)</label><input id="sc" style="width:100%">
+<div class="row">
+<div><label>Kayıtlı sınıflar</label><select id="sv"></select></div>
+<div style="display:flex;align-items:flex-end"><button id="ld">Aç</button><button id="sa">Kaydet</button><button id="de">Sil</button></div>
+</div>
+<div class="row">
+<div><label>Sınıf düzeyi</label><select id="gr"><option>9</option><option>10</option><option>11</option></select></div>
+<div><label>Etkinlik / Anahtar</label><select id="ac"></select></div>
+</div>
+<div class="row">
+<div><label>Şube (örn. 10/A) – kayıt adı olarak da kullanılır</label><input id="sb" placeholder="10/A"></div>
+<div><label>Tarih</label><input id="dt" type="date"></div>
+</div>
+<label>Sınıf listesi (her satır: okul no, Tab, ad soyad; ya da sadece ad soyad)</label>
+<textarea id="nm" rows="6" placeholder="19&#9;Ayşe Yılmaz"></textarea>
+<label>Excel'den al (.xlsx, .xls, .csv – ilk sayfa)</label><input type="file" id="xl" accept=".xlsx,.xls,.csv"><br><button id="mk">Tabloyu Oluştur</button><button id="pr">Yazdır / PDF</button>
+<div class="info" id="info">Puanları girdikten sonra "Kaydet" ile sınıfı (liste + puanlar) bu tarayıcıya kaydedebilirsin; sonra "Aç" ile getirip yazdırırsın. Etkinlik başına puanlar ayrı saklanır. PDF için: Yazdır → "PDF olarak kaydet".</div>
+</div>
+<div class="card"><div id="hd"></div><div class="wrap"><table id="tb"></table></div><div class="dev" style="text-align:left;font-size:12px;margin-top:10px">Geliştirici: Barış MANTAŞ – Fizik Öğretmeni</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const S=s=>s.split('|');
+const GR=S('Yardımlaşır|Düşüncelerini dinler|Çalışmalarda rol alır|Saygı gösterir|Etkileşimle tartışır|Sonucu iletir|Bireysel sorumluluk|Bilgileri tartışır|Birbirine güvenir|Cesaretlendirir|Söz hakkını paylaşır|Çatışmayı tartışmaya açar|Ortak görüş oluşturur|Birlikte çalışmaktan hoşlanır');
+const DENEY=S('Çalışma Planı|Deney Düzeneğini Hazırlama|Deneyin Yapılışı|Verileri Kaydetme, Görsel ve Çizimle İfade|Deney Verilerini Yorumlama');
+const ANAL=S('İçerik|Özgünlük|Malzeme Seçimi|Kaynak Kullanımı|Kullanılabilirlik|STEM Döngüsü');
+const BG=S('İçerik|Günlük Hayat Bağlamı|Görsellik|Zamanın Etkili Kullanımı');
+const KH=S('İçerik|Kavramlar Arası İlişki|Dağılım|Görsellik|Sembollerin Kullanımı|Özgünlük');
+const D={
+'9':[
+['s.19 Zihin Haritası','a',KH],
+['s.33 Sunum','a',S('İçerik|Görsellik|Anlatım ve Beden Dili|Kaynakça|Zamanın Etkili Kullanımı')],
+['s.39 Kariyer Afişi','a',S('İçerik|Görsellik|Özgünlük|Zamanın Etkili Kullanımı')],
+['s.39 Grup Değerlendirme Formu','g',GR],
+['s.103 Broşür / Poster','a',BG],
+['s.148 Sıvı Basıncı Deneyi','a',S('Deney Planı|Düzeneği Hazırlama|Deneyin Yapılışı|İçerik|İlişki|Deney Verilerini Yorumlama')],
+['s.156 Sunum Kontrol Listesi (1=Evet, 0=Hayır)','c',S('Konudan kısaca bahsetti|Tüm etmenlere değindi|Konudan uzaklaşmadı|Etkili başlangıç|Vurgulama|Tonlama|Duraklama|Göz teması|Beden dili|Zenginleştirici ögeler|Etkili sonlandırma|Süreyi verimli kullandı')],
+['s.172 Kaldırma Kuvveti Deneyi','a',S('Deney Düzeneği|İçerik|Rapor Yazma|Sunu|Zamanı Etkili Kullanma')],
+['s.221 Deney','a',DENEY],
+['s.239 Deney','a',DENEY],
+['s.254 Analitik (Yalıtım)','a',S('Yalıtım Etkinliği|Özgünlük|Malzeme Seçimi|Kaynak Kullanımı|Kullanılabilirlik|STEM Döngüsü')]],
+'10':[
+['s.43 Çıkış Kartı (Sabit İvmeli Hareket)','h',['Başarı Düzeyi'],4],
+['s.123 Enerji Bilgi Görseli','a',S('İçerik|Günlük Hayat Örneği|Dikkat Çekicilik ve Görsellik|Özgünlük')],
+['s.147 Grup Değerlendirme Formu','g',GR],
+['s.151 Tasarruf Posteri','a',S('Çalışma Planı|Çalışmanın Yapılışı|Görsel ve Çizimle İfade|Tasarruf Bilincine Katkı')],
+['s.176 Kavram Haritası (Elektrik)','a',S('Kavramların Sayısı|Kavramlar Arası İlişkiler|Kavramların Birimleri|Düzen|Zamanı Etkin Kullanma')],
+['s.183 Deney Posteri','a',S('Deney Tasarımı|Deney Düzeneği Tasarımı|Görsellik|Sunum')],
+['s.187 Çıkış Kartı (Ohm Yasası)','h',['Başarı Düzeyi'],4],
+['s.192 Direnç Bağlantıları Bilgi Görseli','a',S('Kavramlar|Çıkarım Yapma|Görsellik|Anlatım ve Beden Dili|Zamanı Etkin Kullanma')],
+['s.209 Deney','a',DENEY],
+['s.269 Grup Değerlendirme Formu','g',GR],
+['s.274 Dalgalar','a',S('Kavramlar|Kavramlar Arası İlişki|Dağılım|Sunum|Sembollerin Kullanımı')],
+['s.292 Deprem','a',S('Kavramlar|Kavramlar Arası İlişki|Dağılım|Dil Bilgisi')],
+['s.303 Analitik (STEM Ürün)','a',ANAL]],
+'11':[
+['s.18 Poster','a',BG],
+['s.22 Rapor','a',BG],
+['s.44 Newton Yasaları (5 düzey)','h',['Başarı Düzeyi'],5],
+['s.56 Serbest Cisim Diyagramı (5 düzey)','h',['Başarı Düzeyi'],5],
+['s.89 Bilgi Görseli','a',BG],
+['s.103 Çembersel Hareket Kavram Haritası','a',KH],
+['s.118 Senaryo','a',S('Senaryo|Özgünlük|Malzeme Seçimi|Kaynak Kullanımı|Kullanılabilirlik')]]
+};
+const $=i=>document.getElementById(i);
+const mx=a=>a[1]=='a'?4:a[1]=='g'?5:a[1]=='c'?1:a[3];
+function fill(){const g=$('gr').value;$('ac').innerHTML=D[g].map((a,i)=>`<option value="${i}">${a[0]}</option>`).join('');}
+function cur(){return D[$('gr').value][+$('ac').value];}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+const LS={get(k,d){try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const key=()=>$('gr').value+'|'+$('ac').value;
+function parse(){return $('nm').value.split('\n').map(s=>s.trim()).filter(Boolean).map(l=>{const p=l.split('\t');if(p.length>1)return[p[0].trim(),p.slice(1).join(' ').trim()];const m=l.match(/^(\d+)\s+(\S.*)$/);return m&&/[A-Za-zÀ-ɏ]/.test(m[2])?[m[1],m[2]]:['',l]});}
+function calc(tr){const tot=+$('tb').dataset.tot,s=[...tr.querySelectorAll('.s')].reduce((a,x)=>a+(+x.value||0),0);tr.querySelector('.t').textContent=s;tr.querySelector('.p').textContent='%'+Math.round(s/tot*100);}
+function build(){
+ const a=cur(),m=mx(a),cr=a[2],st=parse(),tot=m*cr.length;
+ const c=LS.get('dp_cls',{})[$('sb').value.trim()],sv=c&&c.sc&&c.sc[key()];
+ LS.set('dp_draft',{nm:$('nm').value,sb:$('sb').value});LS.set('dp_school',$('sc').value);
+ const d=$('dt').value?$('dt').value.split('-').reverse().join('.'):'';
+ $('hd').innerHTML=`<div style="text-align:center;font-size:16px"><b>${esc($('sc').value)}</b></div><b>${$('gr').value}. Sınıf Fizik – Ders Kitabı ${esc(a[0])}</b> &nbsp; Sınıf: ${esc($('sb').value)} &nbsp; Tarih: ${d} &nbsp; (Her ölçüt en çok ${m}, toplam ${tot})`;
+ $('hd').style.display='block';
+ const g=a[1]=='g';
+ let h=`<thead><tr><th>Sıra</th>${g?'':'<th>Okul No</th>'}<th>${g?'Grup':'Adı Soyadı'}</th>`+cr.map(x=>`<th>${esc(x)}<br>(${m})</th>`).join('')+`<th>Toplam<br>(${tot})</th><th>Yüzde</th><th>Not</th></tr></thead><tbody>`;
+ st.forEach((n,i)=>{h+=`<tr><td>${i+1}</td>${g?'':`<td>${esc(n[0])}</td>`}<td class="n">${esc(n[1])}</td>`+cr.map(()=>`<td><input class="s" type="number" min="0" max="${m}" step="1" inputmode="numeric"></td>`).join('')+`<td class="t">0</td><td class="p">%0</td><td><input class="nt"></td></tr>`;});
+ $('tb').dataset.tot=tot;$('tb').dataset.key=key();$('tb').innerHTML=h+'</tbody>';
+ [...$('tb').tBodies[0].rows].forEach((tr,i)=>{if(sv&&sv.v[i]){tr.querySelectorAll('.s').forEach((x,j)=>x.value=sv.v[i][j]||'');tr.querySelector('.nt').value=sv.n[i]||'';}calc(tr);});
+}
+$('tb').addEventListener('input',e=>{
+ const t=e.target;if(!t.classList.contains('s'))return;
+ const m=+t.max;if(t.value!==''){let v=Math.round(+t.value);if(v>m)v=m;if(v<0)v=0;t.value=v;}
+ calc(t.closest('tr'));
+});
+function list(sel){const all=LS.get('dp_cls',{});$('sv').innerHTML='<option value="">— kayıtlı sınıf seç —</option>'+Object.keys(all).sort().map(k=>`<option${k===sel?' selected':''}>${esc(k)}</option>`).join('');}
+$('sa').onclick=()=>{
+ const sb=$('sb').value.trim();if(!sb){alert('Önce Şube alanına sınıf adını yaz (örn. 10/A).');return;}
+ const all=LS.get('dp_cls',{}),c=all[sb]||{sc:{}};c.gr=$('gr').value;c.nm=$('nm').value;
+ const k=$('tb').dataset.key;
+ if(k){c.ac=k.split('|')[1];c.sc[k]={v:[...$('tb').tBodies[0].rows].map(tr=>[...tr.querySelectorAll('.s')].map(x=>x.value)),n:[...$('tb').tBodies[0].rows].map(tr=>tr.querySelector('.nt').value)};}
+ all[sb]=c;LS.set('dp_cls',all);LS.set('dp_school',$('sc').value);list(sb);alert(sb+' kaydedildi.');
+};
+$('ld').onclick=()=>{
+ const v=$('sv').value,c=LS.get('dp_cls',{})[v];if(!c)return;
+ $('sb').value=v;$('gr').value=c.gr;fill();if(c.ac!=null)$('ac').value=c.ac;$('nm').value=c.nm;build();
+};
+$('de').onclick=()=>{const v=$('sv').value;if(!v||!confirm(v+' silinsin mi?'))return;const all=LS.get('dp_cls',{});delete all[v];LS.set('dp_cls',all);list();};
+$('xl').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{
+ const wb=XLSX.read(await f.arrayBuffer());const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+ const cl=rows.map(r=>r.map(x=>String(x).trim()).filter(Boolean)),out=[];
+ const st=cl.filter(c=>c.length>2&&/^\d+$/.test(c[0])).length>=3;
+ cl.forEach(c=>{
+  if(st){if(c.length>2&&/^\d+$/.test(c[0])&&/[A-Za-zÀ-ɏ]/.test(c.slice(2).join('')))out.push(c[1]+'\t'+c.slice(2).join(' '));return;}
+  if(c.length>1&&/^\d+$/.test(c[0]))c.shift();
+  const s=c.join(' ');if(s&&!/^(sıra no|no|numara)?\s*(adı\s*soyadı|ad\s*soyad|adı|ad|soyadı|öğrenci)\s*$/i.test(s)&&!/^\d+$/.test(s))out.push(s);
+ });
+ $('nm').value=out.join('\n');build();}catch(err){alert('Dosya okunamadı: '+err.message)}};
+$('gr').onchange=fill;$('mk').onclick=build;$('pr').onclick=()=>window.print();
+fill();list();
+const dr=LS.get('dp_draft',{});$('nm').value=dr.nm||'';$('sb').value=dr.sb||'';
+$('sc').value=LS.get('dp_school','Özen Adalı Anadolu Lisesi');
+$('dt').valueAsDate=new Date();
+</script></body></html>
